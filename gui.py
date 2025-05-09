@@ -18,11 +18,24 @@ def initialize_session():
         st.session_state.logged_in = False
     if 'auth_manager' not in st.session_state:
         st.session_state.auth_manager = AuthManager()
+    if 'use_sources' not in st.session_state:
+        st.session_state.use_sources = False
 
 def render_sidebar():
     """Render sidebar components"""
     with st.sidebar:
         st.title("Settings")
+        
+        # Research settings
+        st.subheader("Research Settings")
+        st.session_state.use_sources = st.toggle(
+            "Use LangChain for sources", 
+            st.session_state.use_sources,
+            help="Enable web search to find and cite sources"
+        )
+        
+        # Conversation controls
+        st.subheader("Conversation")
         if st.button("🔄 Clear Conversation"):
             st.session_state.messages = []
             st.rerun()
@@ -63,7 +76,10 @@ def load_conversation(conv_id):
 def render_chat_interface():
     """Render main chat interface"""
     st.title("🔬 Hermes Research Assistant")
-    st.caption("Powered by Gemini AI - Get instant research summaries")
+    if st.session_state.use_sources:
+        st.caption("Powered by Gemini AI with LangChain - Get research with verified sources")
+    else:
+        st.caption("Powered by Gemini AI - Get instant research summaries")
     
     # Display messages
     for i, message in enumerate(st.session_state.messages):
@@ -91,16 +107,22 @@ def handle_user_input(prompt):
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("assistant"):
-        with st.spinner("Researching..."):
+        with st.spinner("Researching..." + (" (with sources)" if st.session_state.use_sources else "")):
             try:
-                research_prompt = f"""Provide a detailed research response about: {prompt}
-                Structure your response with:
-                1. Key Findings (bullet points)
-                2. Relevant Studies (with citations if possible)
-                3. Current Challenges
-                4. Future Directions"""
+                if st.session_state.use_sources:
+                    # Use LangChain for sourced research
+                    response = st.session_state.gemini.generate_research_with_sources(prompt)
+                else:
+                    # Use standard Gemini response
+                    research_prompt = f"""Provide a detailed research response about: {prompt}
+                    Structure your response with:
+                    1. Key Findings (bullet points)
+                    2. Relevant Studies (with citations if possible)
+                    3. Current Challenges
+                    4. Future Directions"""
+                    
+                    response = st.session_state.gemini.generate_response(research_prompt)
                 
-                response = st.session_state.gemini.generate_response(research_prompt)
                 conv_id = st.session_state.db.save_conversation(
                     prompt, 
                     response, 
