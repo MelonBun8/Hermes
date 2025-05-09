@@ -1,7 +1,10 @@
 import streamlit as st
 import atexit
+import base64
 from gemini import GeminiAssistant
 from database import DatabaseManager
+from pdf import export_conversation_to_pdf
+from auth import login_page, AuthManager
 
 def initialize_session():
     """Initialize session state variables"""
@@ -11,6 +14,10 @@ def initialize_session():
         st.session_state.gemini = GeminiAssistant()
     if 'db' not in st.session_state:
         st.session_state.db = DatabaseManager()
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'auth_manager' not in st.session_state:
+        st.session_state.auth_manager = AuthManager()
 
 def render_sidebar():
     """Render sidebar components"""
@@ -20,8 +27,22 @@ def render_sidebar():
             st.session_state.messages = []
             st.rerun()
         
+        # Export to PDF button
+        if st.session_state.messages and len(st.session_state.messages) > 0:
+            if st.button("📄 Export to PDF"):
+                pdf_data = export_conversation_to_pdf(st.session_state.messages)
+                b64_pdf = base64.b64encode(pdf_data).decode('utf-8')
+                href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="research_conversation.pdf">Download PDF</a>'
+                st.markdown(href, unsafe_allow_html=True)
+        
+        # Logout button
+        if st.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.rerun()
+        
         st.divider()
         st.markdown(f"**Current Model:**\n`{getattr(st.session_state, 'current_model', 'N/A')}`")
+        st.markdown(f"**Logged in as:**\n`{getattr(st.session_state, 'username', 'N/A')}`")
         
         st.markdown("**Conversation History**")
         for conv in st.session_state.db.get_recent_conversations():
@@ -29,12 +50,13 @@ def render_sidebar():
                 load_conversation(conv[0])
 
 def load_conversation(conv_id):
-    """Load specific conversation"""
-    conv = st.session_state.db.get_recent_conversations(1)
+    """Load specific conversation by ID"""
+    conv = st.session_state.db.get_conversation_by_id(conv_id)
+    
     if conv:
         st.session_state.messages = [
-            {"role": "user", "content": conv[0][1]},
-            {"role": "assistant", "content": conv[0][2], "id": conv[0][0]}
+            {"role": "user", "content": conv[1]},
+            {"role": "assistant", "content": conv[2], "id": conv[0]}
         ]
         st.rerun()
 
@@ -105,8 +127,13 @@ def main():
         atexit.register(st.session_state.db.close_all)
     
     initialize_session()
-    render_sidebar()
-    render_chat_interface()
+    
+    # Check if user is logged in
+    if not st.session_state.logged_in:
+        login_page()
+    else:
+        render_sidebar()
+        render_chat_interface()
 
 if __name__ == "__main__":
     main()

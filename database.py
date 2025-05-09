@@ -7,7 +7,15 @@ class DatabaseManager:
         self.db_name = db_name
         self._local = threading.local()
         self._initialize_db()
-        
+    
+    def get_conversation_by_id(self, conv_id):
+        """Get conversation by ID"""
+        with self._get_connection() as conn:
+            return conn.execute(
+                "SELECT id, query, response FROM conversations WHERE id = ?",
+                (conv_id,)
+            ).fetchone()
+
     def _get_connection(self):
         if not hasattr(self._local, 'conn'):
             self._local.conn = sqlite3.connect(self.db_name)
