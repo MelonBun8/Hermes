@@ -1,48 +1,125 @@
 import io
+from datetime import datetime
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.lib.units import inch
+import base64
+import markdown
+from PIL import Image as PILImage
 import streamlit as st
 
-def export_conversation_to_pdf(messages):
-    """Export conversation to PDF"""
+def export_conversation_to_pdf(messages, username="User"):
+    """Export conversation to PDF with improved formatting"""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, 
-                           rightMargin=72, leftMargin=72,
-                           topMargin=72, bottomMargin=72)
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=A4, 
+        rightMargin=0.5*inch, 
+        leftMargin=0.5*inch,
+        topMargin=0.75*inch, 
+        bottomMargin=0.75*inch
+    )
     
     styles = getSampleStyleSheet()
     
     # Create custom styles
-    styles.add(ParagraphStyle(name='User',
-                              parent=styles['Normal'],
-                              fontName='Helvetica-Bold',
-                              fontSize=12,
-                              textColor=colors.blue,
-                              spaceAfter=6))
+    styles.add(ParagraphStyle(
+        name='User',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=10,
+        textColor=colors.HexColor('#2E5984'),  # Professional blue
+        spaceAfter=6,
+        borderPadding=(10, 10, 10, 10),
+        borderWidth=0.5,
+        borderColor=colors.HexColor('#E5E5E5'),  # Light gray
+        borderRadius=5
+    ))
     
-    styles.add(ParagraphStyle(name='Assistant',
-                              parent=styles['Normal'],
-                              fontName='Helvetica',
-                              fontSize=12,
-                              spaceBefore=6,
-                              spaceAfter=12))
+    styles.add(ParagraphStyle(
+        name='Assistant',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=10,
+        spaceBefore=6,
+        spaceAfter=12,
+        borderPadding=(10, 10, 10, 10),
+        borderWidth=0.5,
+        borderColor=colors.HexColor('#E5E5E5'),  # Light gray
+        borderRadius=5
+    ))
+    
+    styles.add(ParagraphStyle(
+        name='Header',
+        parent=styles['Heading1'],
+        fontSize=16,
+        textColor=colors.HexColor('#1E3D59'),  # Darker blue
+        alignment=1,  # Center alignment
+        spaceAfter=20
+    ))
+    
+    styles.add(ParagraphStyle(
+        name='Subheader',
+        parent=styles['Heading2'],
+        fontSize=12,
+        textColor=colors.HexColor('#1E3D59'),  # Darker blue
+        alignment=0,  # Left alignment
+        spaceAfter=10
+    ))
+    
+    styles.add(ParagraphStyle(
+        name='Footer',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.gray,
+        alignment=1  # Center alignment
+    ))
     
     story = []
     
+    # Try to add logo if available
+    try:
+        # Create a logo placeholder for the PDF
+        logo_io = io.BytesIO()
+        logo_image = PILImage.new('RGB', (200, 60), color=(30, 61, 89))
+        logo_image.save(logo_io, format='PNG')
+        logo_data = logo_io.getvalue()
+        
+        # Add logo to PDF
+        logo = Image(io.BytesIO(logo_data), width=2*inch, height=0.6*inch)
+        story.append(logo)
+    except Exception:
+        # Skip logo if there's an issue
+        pass
+    
     # Add title
-    title = Paragraph("Hermes Research Assistant - Conversation Export", styles['Title'])
+    title = Paragraph("Hermes Research Assistant", styles['Header'])
     story.append(title)
+    
+    # Add metadata
+    current_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+    metadata = Paragraph(f"Conversation exported on {current_date} for {username}", styles['Subheader'])
+    story.append(metadata)
     story.append(Spacer(1, 24))
     
     # Add conversation
     for message in messages:
         if message["role"] == "user":
-            story.append(Paragraph(f"<b>You:</b> {message['content']}", styles['User']))
+            md_content = markdown.markdown(message['content'])
+            content = f"<b>You:</b> {md_content}"
+            story.append(Paragraph(content, styles['User']))
         else:
-            story.append(Paragraph(f"<b>Hermes:</b> {message['content']}", styles['Assistant']))
+            md_content = markdown.markdown(message['content'])
+            content = f"<b>Hermes:</b> {md_content}"
+            story.append(Paragraph(content, styles['Assistant']))
         story.append(Spacer(1, 12))
+    
+    # Add footer
+    footer = Paragraph("Generated by Hermes Research Assistant", styles['Footer'])
+    story.append(Spacer(1, 36))
+    story.append(footer)
     
     doc.build(story)
     
@@ -51,3 +128,10 @@ def export_conversation_to_pdf(messages):
     buffer.close()
     
     return pdf_data
+
+
+def get_pdf_download_link(pdf_data, filename="research_conversation.pdf"):
+    """Generate a download link for PDF data"""
+    b64_pdf = base64.b64encode(pdf_data).decode('utf-8')
+    href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="{filename}" class="download-btn">Download PDF</a>'
+    return href
