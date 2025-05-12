@@ -24,7 +24,6 @@ langchain==0.1.0
 langchain-community==0.0.30
 langchain-core==0.2.0
 langchain-google-genai==0.0.6
-langchain-huggingface==0.0.6
 langchain-text-splitters==0.0.1
 litellm==1.58.2
 lxml==5.3.0
