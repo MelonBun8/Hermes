@@ -41,3 +41,4 @@ numpy
 openai  
 openpyxl  
 orjson  
+reportlab
